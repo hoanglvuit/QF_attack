@@ -33,6 +33,7 @@ def search_min_char(sentence_embading, sentence, char_list, k, mask=None, tokeni
     res=''
     min_cos=1
     min_char=''
+
     for c in char_list:
         change_sentence = list(copy.deepcopy(modify_sentence))
         change_sentence[k] = c
@@ -66,6 +67,7 @@ def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=
     print(f"xong vong 1 {modify_sentence}")
     for i in range(iter_times):
         for k in range(length, 0, -1):
+            print(-k)
             modify_sentence = search_min_char(sentence_embedding, modify_sentence, char_list, -k, mask, tokenizer=tokenizer, text_encoder=text_encoder)
             print(modify_sentence)
     return modify_sentence
