@@ -184,7 +184,14 @@ def get_clip_embedding(prompt, tokenizer=None, text_encoder=None):
         txt_embed = text_encoder.text_model.embeddings(input_ids = input_ids)
     return txt_embed, input_shape
 
-
+def build_causal_attention_mask(bsz, seq_len, dtype):
+    # lazily create causal attention mask, with full attention between the vision tokens
+    # pytorch uses additive attention mask; fill with -inf
+    mask = torch.empty(bsz, seq_len, seq_len, dtype=dtype)
+    mask.fill_(torch.tensor(torch.finfo(dtype).min))
+    mask.triu_(1)  # zero out the lower diagonal
+    mask = mask.unsqueeze(1)  # expand mask
+    return mask
 def forward_embedding(hidden_states,input_shape, model=None, tokenizer=None, text_encoder=None):
     output_attentions = text_encoder.text_model.config.output_attentions
     output_hidden_states = (
@@ -192,7 +199,7 @@ def forward_embedding(hidden_states,input_shape, model=None, tokenizer=None, tex
     )
     bsz, seq_len = input_shape
     return_dict = text_encoder.text_model.config.use_return_dict
-    causal_attention_mask = text_encoder.text_model._build_causal_attention_mask(bsz, seq_len, dtype=hidden_states.dtype).to(hidden_states.device)
+    causal_attention_mask = build_causal_attention_mask(bsz, seq_len, dtype=hidden_states.dtype).to(hidden_states.device)
     attention_mask = None
     encoder_outputs = text_encoder.text_model.encoder(
         inputs_embeds=hidden_states,
@@ -214,7 +221,7 @@ def forward_embedding_no_grad(hidden_states,input_shape, model=None, tokenizer=N
         )
         bsz, seq_len = input_shape
         return_dict = text_encoder.text_model.config.use_return_dict
-        causal_attention_mask = text_encoder.text_model._build_causal_attention_mask(bsz, seq_len, dtype=hidden_states.dtype).to(hidden_states.device)
+        causal_attention_mask = build_causal_attention_mask(bsz, seq_len, dtype=hidden_states.dtype).to(hidden_states.device)
         attention_mask = None
         encoder_outputs = text_encoder.text_model.encoder(
             inputs_embeds=hidden_states,
