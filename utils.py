@@ -63,13 +63,9 @@ def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=
     for i in range(length):
         modify_sentence += ' '
         modify_sentence = search_min_char(sentence_embedding, modify_sentence, char_list, -1, tokenizer=tokenizer, text_encoder=text_encoder)
-        print(modify_sentence)
-    print(f"xong vong 1 {modify_sentence}")
     for i in range(iter_times):
         for k in range(length, 0, -1):
-            print(-k)
             modify_sentence = search_min_char(sentence_embedding, modify_sentence, char_list, -k, mask, tokenizer=tokenizer, text_encoder=text_encoder)
-            print(modify_sentence)
     return modify_sentence
 # example: search_min_sentence_iteration(sen, chapter, 5, 1, mask.view(-1))
 
