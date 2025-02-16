@@ -63,6 +63,7 @@ def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=
         modify_sentences = search_min_char(sentence_embedding, modify_sentences, char_list, -1, tokenizer=tokenizer, text_encoder=text_encoder,top_k = 1)
     modify_sentence = modify_sentences[:1] 
     modify_sentences = [modify_sentence]
+    print(modify_sentences)
     for i in range(iter_times):
         for k in range(length, 0, -1):
             modify_sentences = search_min_char(sentence_embedding, modify_sentences, char_list, -k, mask, tokenizer=tokenizer, text_encoder=text_encoder,top_k = 1)
