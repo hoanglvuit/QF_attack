@@ -60,13 +60,13 @@ def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=
         modify_sentences.append(modify_sentence)
     for i in range(length):
         modify_sentences = [sentence + ' ' for sentence in modify_sentences]
-        modify_sentences = search_min_char(sentence_embedding, modify_sentences, char_list, -1, tokenizer=tokenizer, text_encoder=text_encoder,top_k = 1)
+        modify_sentences = search_min_char(sentence_embedding, modify_sentences, char_list, -1, tokenizer=tokenizer, text_encoder=text_encoder,top_k = top_k)
     modify_sentences = modify_sentences[:1] 
     # modify_sentences = [modify_sentence]
     # print(modify_sentences)
     for i in range(iter_times):
         for k in range(length, 0, -1):
-            modify_sentences = search_min_char(sentence_embedding, modify_sentences, char_list, -k, mask, tokenizer=tokenizer, text_encoder=text_encoder,top_k = 1)
+            modify_sentences = search_min_char(sentence_embedding, modify_sentences, char_list, -k, mask, tokenizer=tokenizer, text_encoder=text_encoder,top_k = top_k)
     return modify_sentences[0]
 # example: search_min_sentence_iteration(sen, chapter, 5, 1, mask.view(-1))
 
