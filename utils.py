@@ -28,45 +28,45 @@ def get_char_table():
 def cos_mask(a,b,mask):
     return cos(a*mask, b*mask)
 
-def search_min_char(sentence_embading, sentence, char_list, k, mask=None, tokenizer=None, text_encoder=None):
-    modify_sentence = copy.deepcopy(sentence)
-    res=''
-    min_cos=1
-    min_char=''
-
-    for c in char_list:
-        change_sentence = list(copy.deepcopy(modify_sentence))
-        change_sentence[k] = c
-        change_sentence = ''.join(change_sentence)
-        
-        change_embading = get_text_embeds_without_uncond([change_sentence], tokenizer, text_encoder)
-        
-        if mask == None:
-            temp_cos=cos(sentence_embading.view(-1), change_embading.view(-1))
-        else:
-            temp_cos=cos_mask(sentence_embading.view(-1), change_embading.view(-1), mask)
-        if temp_cos < min_cos:
-            res=change_sentence
-            min_cos = temp_cos
-            min_char=c
-    modify_sentence=res
+def search_min_char(sentence_embading, sentences, char_list, k, mask=None, tokenizer=None, text_encoder=None, top_k = 1):
+    candidate_list = []
+    for modify_sentence in sentences : 
+        for c in char_list:
+            change_sentence = list(modify_sentence)
+            change_sentence[k] = c
+            change_sentence = ''.join(change_sentence)
+            
+            change_embading = get_text_embeds_without_uncond([change_sentence], tokenizer, text_encoder)
+            
+            if mask == None:
+                temp_cos=cos(sentence_embading.view(-1), change_embading.view(-1))
+            else:
+                temp_cos=cos_mask(sentence_embading.view(-1), change_embading.view(-1), mask)
+            candidate_list.append((temp_cos,change_sentence)) 
+    sorted_list = sorted(candidate_list) 
+    sorted_candidate = [x[1] for x in sorted_list]
     # print(min_cos,modify_sentence,"char",min_char)
-    return modify_sentence
-def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=None, random_choice=False, tokenizer=None, text_encoder=None):
+    return sorted_candidate[:top_k]
+def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=None, random_choice=False, tokenizer=None, text_encoder=None, top_k = 1 ):
     sentence_embedding = get_text_embeds_without_uncond([sentence], tokenizer, text_encoder)
+    modify_sentences = []
     if random_choice:
         first_c = random.choice(char_list)
         modify_sentence = copy.deepcopy(sentence)+' '+first_c
         length -= 1
+        modify_sentences.append(modify_sentence)
     else:
         modify_sentence = copy.deepcopy(sentence)+' '
+        modify_sentences.append(modify_sentence)
     for i in range(length):
-        modify_sentence += ' '
-        modify_sentence = search_min_char(sentence_embedding, modify_sentence, char_list, -1, tokenizer=tokenizer, text_encoder=text_encoder)
+        modify_sentences = [sentence + ' ' for sentence in modify_sentences]
+        modify_sentences = search_min_char(sentence_embedding, modify_sentences, char_list, -1, tokenizer=tokenizer, text_encoder=text_encoder,top_k = 1)
+    modify_sentence = modify_sentences[:1] 
+    modify_sentences = [modify_sentence]
     for i in range(iter_times):
         for k in range(length, 0, -1):
-            modify_sentence = search_min_char(sentence_embedding, modify_sentence, char_list, -k, mask, tokenizer=tokenizer, text_encoder=text_encoder)
-    return modify_sentence
+            modify_sentences = search_min_char(sentence_embedding, modify_sentences, char_list, -k, mask, tokenizer=tokenizer, text_encoder=text_encoder,top_k = 1)
+    return modify_sentences[:1]
 # example: search_min_sentence_iteration(sen, chapter, 5, 1, mask.view(-1))
 
 # genetic algorithm
