@@ -48,7 +48,7 @@ def search_min_char(sentence_embading, sentences, char_list, k, mask=None, token
     sorted_score = [x[0] for x in sorted_list]
     # print(min_cos,modify_sentence,"char",min_char)
     return sorted_candidate[:top_k], sorted_score[:top_k]
-def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=None, random_choice=False, tokenizer=None, text_encoder=None, top_k = 1 ):
+def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=None, random_choice=False, tokenizer=None, text_encoder=None, top_k = 1 , remain = True):
     sentence_embedding = get_text_embeds_without_uncond([sentence], tokenizer, text_encoder)
     modify_sentences = []
     score = []
@@ -63,7 +63,10 @@ def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=
     for i in range(length):
         modify_sentences = [sentence + ' ' for sentence in modify_sentences]
         modify_sentences,_ = search_min_char(sentence_embedding, modify_sentences, char_list, -1, tokenizer=tokenizer, text_encoder=text_encoder,top_k = top_k)
-    modify_sentences = modify_sentences[:top_k] 
+    if remain : 
+        modify_sentences = modify_sentences[:top_k] 
+    else :  
+        modify_sentences = modify_sentences[:1]
     # modify_sentences = [modify_sentence]
     # print(modify_sentences)
     for i in range(iter_times):
