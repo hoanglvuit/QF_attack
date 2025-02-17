@@ -110,7 +110,7 @@ def vari_generation(string1, string2, char_list, vari_loc = None):
     string2 = ''.join(string2_list)
     return string1, string2
 
-def genetic(sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None):
+def genetic(sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False):
     generation_list = init_pool(char_list, length)
     res = []
     score_list={}
@@ -122,6 +122,8 @@ def genetic(sentence, char_list, length, generation_num = 50, generateion_scale 
             g1, g2 = get_generation(candidate, mate, char_list)
             pool.append(g1)
             pool.append(g2)
+            if remain :  
+                pool.append(candidate)
         # pool.extend(res)
         generation_list = select(sentence, pool, generateion_scale, score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder)
         # print(score_list)
