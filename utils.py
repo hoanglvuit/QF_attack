@@ -45,7 +45,7 @@ def search_min_char(sentence_embading, sentences, char_list, k, mask=None, token
             candidate_list.append((temp_cos,change_sentence)) 
     sorted_list = sorted(candidate_list) 
     sorted_candidate = [x[1] for x in sorted_list]
-    sorted_score = [x[2] for x in sorted_list]
+    sorted_score = [x[0] for x in sorted_list]
     # print(min_cos,modify_sentence,"char",min_char)
     return sorted_candidate[:top_k], sorted_score[:top_k]
 def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=None, random_choice=False, tokenizer=None, text_encoder=None, top_k = 1 ):
