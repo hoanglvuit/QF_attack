@@ -5,6 +5,7 @@ from torch.nn import functional as F
 import numpy as np
 from PIL import Image
 random.seed(28)
+torch.manual_seed(28)
 cos = torch.nn.CosineSimilarity(dim=0, eps=1e-6)
 def get_text_embeds_without_uncond(prompt, tokenizer, text_encoder):
     # Tokenize text and get embeddings
@@ -170,6 +171,7 @@ def init_pool(char_list, length, num = 10):
     for i in range(num):
         pool.append(''.join(random.sample(char_list, length)))
     return pool
+
 # example: genetic(sentence, chap, len_prompt, mask = mask)
 
 
