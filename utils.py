@@ -451,7 +451,7 @@ def object_key_1(sentence_list, object_word, thres = 10, tokenizer=None, text_en
     total_diff=0
     for i in sentence_list:
         sen_embed = get_text_embeds_without_uncond(i, tokenizer=tokenizer, text_encoder=text_encoder)
-        crafted_embed = get_text_embeds_without_uncond(extra_words, tokenizer=tokenizer, text_encoder=text_encoder)
+        crafted_embed = get_text_embeds_without_uncond(i.replace(object_word,''), tokenizer=tokenizer, text_encoder=text_encoder)
         diff_list.append(crafted_embed-sen_embed)
         total_diff += crafted_embed-sen_embed
     average_diff = total_diff/len(diff_list)
