@@ -160,6 +160,51 @@ def select(sentence, pool, generateion_scale, mask=None, score_list=None, tokeni
     sorted_pool = sorted(pool_score)
     selected_generation = [x[1] for x in sorted_pool]
     return selected_generation[0:generateion_scale]
+### MAX
+
+def genetic_max(target_sentence,sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False):
+    generation_list = init_pool(char_list, length)
+    res = []
+    score_list={}
+    for generation in range(generation_num):
+        pool = []
+        # print(generation_list)
+        for candidate in generation_list:
+            mate = random.choice(generation_list)
+            g1, g2 = get_generation(candidate, mate, char_list)
+            pool.append(g1)
+            pool.append(g2)
+            if remain :  
+                pool.append(candidate)
+        # pool.extend(res)
+        generation_list = select_max(target_sentence,sentence, pool, generateion_scale, score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder)
+        # print(score_list)
+        
+    res = sorted(score_list.items(),key = lambda x:x[1],reverse = True)[0:5]
+    return res
+
+def select_max(target_sentence,sentence, pool, generateion_scale, mask=None, score_list=None, tokenizer=None, text_encoder=None):
+    text_embedding = get_text_embeds_without_uncond([target_sentence], tokenizer, text_encoder)
+    pool_score = []
+    if score_list == None:
+        score_list = {}
+    for candidate in pool:
+        if candidate in score_list.keys():
+            temp_score = score_list[candidate]
+            pool_score.append((temp_score, candidate))
+            continue
+        candidate_text = sentence + ' ' + candidate
+        if mask == None:
+            temp_score = cos_embedding_text(text_embedding, candidate_text, tokenizer=tokenizer, text_encoder=text_encoder)
+        else:
+            temp_score = cos_embedding_text(text_embedding, candidate_text, mask, tokenizer=tokenizer, text_encoder=text_encoder)
+        score_list[candidate]=temp_score
+        # print('genetic prompt:',candidate,temp_score)
+        pool_score.append((temp_score, candidate))
+        
+    sorted_pool = sorted(pool_score,reverse = True)
+    selected_generation = [x[1] for x in sorted_pool]
+    return selected_generation[0:generateion_scale]
 
 def cos_mask(a,b,mask):
     return cos(a*mask, b*mask)
