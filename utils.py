@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import math
 import gc 
 from open_clip import tokenizer
+from torch import autocast
 
 random.seed(28)
 torch.manual_seed(28)
