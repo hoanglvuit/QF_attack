@@ -4,6 +4,11 @@ import random
 from torch.nn import functional as F
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
+import math
+import gc 
+from open_clip import tokenizer
+
 random.seed(28)
 torch.manual_seed(28)
 cos = torch.nn.CosineSimilarity(dim=0, eps=1e-6)
@@ -440,13 +445,13 @@ def train(init_per_sample, sentence, len_prompt, char_list, model, iter_num = 10
     return max_tensor, loss_list, ''.join([char_list[x] for x in res_list]), max(single_loss_list)
 
 
-def object_key(sentence_list, object_word, thres = 10, tokenizer=None, text_encoder=None):
+def object_key_1(sentence_list, object_word, thres = 10, tokenizer=None, text_encoder=None, use_avr = False):
     extra_words=object_word
     diff_list=[]
     total_diff=0
     for i in sentence_list:
         sen_embed = get_text_embeds_without_uncond(i, tokenizer=tokenizer, text_encoder=text_encoder)
-        crafted_embed = get_text_embeds_without_uncond(i.replace(object_word,''), tokenizer=tokenizer, text_encoder=text_encoder)
+        crafted_embed = get_text_embeds_without_uncond(extra_words, tokenizer=tokenizer, text_encoder=text_encoder)
         diff_list.append(crafted_embed-sen_embed)
         total_diff += crafted_embed-sen_embed
     average_diff = total_diff/len(diff_list)
@@ -458,6 +463,34 @@ def object_key(sentence_list, object_word, thres = 10, tokenizer=None, text_enco
         total_sign+=vec
     total_sign[abs(total_sign)<=thres]=0
     total_sign[abs(total_sign)>thres]=1
+    average_diff[abs(average_diff)<=thres]=0
+    average_diff[abs(average_diff)>thres]=1
+    if use_avr : 
+        total_sign = average_diff
+    print('Ratio of mask', total_sign[total_sign>0].shape[0]/total_sign.view(-1).shape[0])
+    return total_sign
+def object_key_2(sentence_list, object_word, thres = 10, tokenizer=None, text_encoder=None,use_avr = False):
+    extra_words=object_word
+    diff_list=[]
+    total_diff=0
+    for i in sentence_list:
+        sen_embed = get_text_embeds_without_uncond(i, tokenizer=tokenizer, text_encoder=text_encoder)
+        crafted_embed = get_text_embeds_without_uncond(extra_words, tokenizer=tokenizer, text_encoder=text_encoder)
+        diff_list.append(crafted_embed-sen_embed)
+        total_diff += crafted_embed-sen_embed
+    average_diff = total_diff/len(diff_list)
+
+    total_sign=0
+    for vec in diff_list:
+        vec[vec>0]=1
+        vec[vec<0]=-1
+        total_sign+=vec
+    total_sign[abs(total_sign)<=thres]=0
+    total_sign[abs(total_sign)>thres]=1
+    average_diff[abs(average_diff)<=thres]=0
+    average_diff[abs(average_diff)>thres]=1
+    if use_avr :
+        total_sign = average_diff
     print('Ratio of mask', total_sign[total_sign>0].shape[0]/total_sign.view(-1).shape[0])
     return total_sign
 
@@ -472,3 +505,91 @@ def image_grid(imgs, rows, cols):
     for i, img in enumerate(imgs):
         grid.paste(img, box=(i%cols*w, i//cols*h))
     return grid
+def show_image_groups_with_prompts(image_groups, prompts, score_list, figsize=(25, 100)):
+    """
+    Display groups of images with their corresponding prompts and scores.
+    Optimized for large image groups (around 50 images per group).
+    
+    Args:
+        image_groups: List of lists containing images
+        prompts: List of prompts corresponding to each group
+        score_list: List of scores for each group
+        figsize: Tuple of (width, height) for the figure
+    """
+    # Number of groups and images per group
+    num_groups = len(image_groups)
+    images_per_group = len(image_groups[0])
+    
+    # Calculate optimal grid layout
+    images_per_row = min(10, images_per_group)  # Cap at 10 images per row
+    rows_per_group = math.ceil(images_per_group / images_per_row)
+    total_rows = rows_per_group * num_groups
+    
+    # Adjust figsize based on the number of rows and columns
+    adjusted_height = max(15, 5 * total_rows)  # Minimum height of 15
+    adjusted_width = max(20, 2.5 * images_per_row)  # Minimum width of 20
+    fig = plt.figure(figsize=(adjusted_width, adjusted_height))
+    
+    # Create grid for all images
+    grid = plt.GridSpec(total_rows, images_per_row, hspace=0.4, wspace=0.2)
+    
+    for group_idx, (group, prompt, score) in enumerate(zip(image_groups, prompts, score_list)):
+        # Calculate row offset for current group
+        row_offset = group_idx * rows_per_group
+        
+        # Add prompt and score as a title for the group
+        prompt_text = f"Group {group_idx + 1}\nPrompt: {prompt}\nScore: {score}"
+        plt.figtext(0.02, 1 - (row_offset + rows_per_group/2) / total_rows,
+                   prompt_text,
+                   verticalalignment='center',
+                   fontsize=10,
+                   bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray', pad=3),
+                   wrap=True)
+        
+        # Plot images in the group
+        for img_idx, img in enumerate(group):
+            # Calculate position in grid
+            current_row = row_offset + (img_idx // images_per_row)
+            current_col = img_idx % images_per_row
+            
+            # Create subplot and display image
+            ax = plt.subplot(grid[current_row, current_col])
+            ax.imshow(img)
+            ax.axis('off')
+            
+            # Add small image number
+            ax.text(0.02, 0.98, f'{img_idx + 1}',
+                   transform=ax.transAxes,
+                   fontsize=8,
+                   color='white',
+                   bbox=dict(facecolor='black', alpha=0.5, pad=1),
+                   verticalalignment='top')
+    
+    # Adjust layout
+    plt.subplots_adjust(left=0.2, right=0.98, top=0.98, bottom=0.02)
+    plt.show()
+def generate_images(prompts,pipe,generator) : 
+    torch.cuda.empty_cache()
+    gc.collect()
+    images = [] 
+    for prompt in prompts : 
+        with autocast('cuda') : 
+            image = pipe([prompt],generator = generator,num_inference_steps=50,num_images_per_prompt = 5,safety_checker = None).images
+            images.append(image)
+    return images
+def clip_score(prompts,images): 
+    simi = 0 
+    score_list = []
+    for i in range(len(prompts)): 
+        image_input = torch.tensor(np.stack([preprocess(img) for img in images[i]])).to(device)
+        text_tokens = tokenizer.tokenize([prompts[i]]*5).to(device)
+        with torch.no_grad():
+            image_features = model.encode_image(image_input).float()
+            text_features = model.encode_text(text_tokens).float()
+        image_features /= image_features.norm(dim=-1, keepdim=True)
+        text_features /= text_features.norm(dim=-1, keepdim=True)
+        similarity = text_features.cpu().numpy() @ image_features.cpu().numpy().T
+        similarity = np.mean(similarity)
+        simi += similarity 
+        score_list.append(similarity)
+    return simi / len(prompts) , score_list
