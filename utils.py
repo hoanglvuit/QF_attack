@@ -149,14 +149,16 @@ def tournament_selection(pool_score, m = False) :
     n = 3 
     pool = []
     random.shuffle(pool_score) 
+    if len(pool_score) % 3 != 0 : 
+        n = 2
     if m == True : 
-        for i in range(len(pool_score)//3) : 
-            sub_pool = pool_score[i*3:(i+1)*3] 
+        for i in range(len(pool_score)//n) : 
+            sub_pool = pool_score[i*n:(i+1)*n] 
             sorted_sub_pool = sorted(sub_pool,reverse=True) 
             pool.append(sorted_sub_pool[0][1])
         return pool 
-    for i in range(len(pool_score)//3) : 
-        sub_pool = pool_score[i*3:(i+1)*3] 
+    for i in range(len(pool_score)//n) : 
+        sub_pool = pool_score[i*n:(i+1)*n] 
         sorted_sub_pool = sorted(sub_pool) 
         pool.append(sorted_sub_pool[0][1])
     return pool 
