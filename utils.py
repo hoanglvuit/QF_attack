@@ -83,12 +83,17 @@ def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=
 # example: search_min_sentence_iteration(sen, chapter, 5, 1, mask.view(-1))
 
 # genetic algorithm
-def get_generation(string1, string2, char_list, cross_loc = None, variation_loc = None):
+def get_generation(string1, string2, char_list, cross_loc = None, variation_loc = None,ran_vari=None):
     if len(string1) != len(string2):
         print("length of string1 and string2 should be the same")
         return None
     string1, string2 = cross_generation(string1, string2)
-    if random.random() > 0.3 : 
+    thres = None
+    if ran_vari == None : 
+        thres = 0 
+    else : 
+        thres = ran_vari 
+    if random.random() > thres : 
         string1, string2 = vari_generation(string1, string2, char_list)
     return string1, string2
     
@@ -118,7 +123,7 @@ def vari_generation(string1, string2, char_list, vari_loc = None):
     string2 = ''.join(string2_list)
     return string1, string2
 
-def genetic(sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False,tournament = False):
+def genetic(sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False,ran_vari = None,tournament = False):
     generation_list = init_pool(char_list, length,generateion_scale)
     res = []
     score_list={}
@@ -127,7 +132,7 @@ def genetic(sentence, char_list, length, generation_num = 50, generateion_scale 
         # print(generation_list)
         for candidate in generation_list:
             mate = random.choice(generation_list)
-            g1, g2 = get_generation(candidate, mate, char_list)
+            g1, g2 = get_generation(candidate, mate, char_list,ran_vari=ran_vari)
             pool.append(g1)
             pool.append(g2)
             if remain :  
