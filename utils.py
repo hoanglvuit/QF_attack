@@ -139,6 +139,7 @@ def genetic(sentence, char_list, length, generation_num = 50, generateion_scale 
                 pool.append(candidate)
 
         generation_list = select(sentence, pool, generateion_scale, score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament )
+        print(generation_list)
 
         
     res = sorted(score_list.items(),key = lambda x:x[1],reverse = False)[0:5]
