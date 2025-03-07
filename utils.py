@@ -137,6 +137,7 @@ def genetic(sentence, char_list, length, generation_num = 50, generateion_scale 
             pool.append(g2)
             if remain :  
                 pool.append(candidate)
+        print('len pool: ', len(pool))
 
         generation_list = select(sentence, pool, generateion_scale, score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament )
         print(generation_list)
@@ -180,6 +181,7 @@ def select(sentence, pool, generateion_scale, mask=None, score_list=None, tokeni
         score_list[candidate]=temp_score
         # print('genetic prompt:',candidate,temp_score)
         pool_score.append((temp_score, candidate))
+    print('len poolscore: ', len(pool_score))
     if tournament == True : 
         return tournament_selection(pool_score)
     sorted_pool = sorted(pool_score)
