@@ -88,7 +88,7 @@ def get_generation(string1, string2, char_list, cross_loc = None, variation_loc 
         print("length of string1 and string2 should be the same")
         return None
     string1, string2 = cross_generation(string1, string2)
-    if random.random() > 0.7 : 
+    if random.random() > 0.3 : 
         string1, string2 = vari_generation(string1, string2, char_list)
     return string1, string2
     
@@ -119,7 +119,7 @@ def vari_generation(string1, string2, char_list, vari_loc = None):
     return string1, string2
 
 def genetic(sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False,tournament = False):
-    generation_list = init_pool(char_list, length)
+    generation_list = init_pool(char_list, length,generateion_scale)
     res = []
     score_list={}
     for generation in range(generation_num):
