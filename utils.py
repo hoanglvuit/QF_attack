@@ -150,7 +150,7 @@ def genetic(target_sentence = None,sentence=None, char_list=None, length=None, g
                 pool.append(candidate)
 
         generation_list = select(target_sentence = target_sentence,sentence=sentence, pool=pool, generateion_scale =generateion_scale , score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament, max_optimize = max_optimize )
-        print(generation_list)
+        #print(generation_list)
 
     if max_optimize : 
         res = sorted(score_list.items(),key = lambda x:x[1],reverse = True)[0:5]
