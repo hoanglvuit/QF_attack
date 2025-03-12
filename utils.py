@@ -626,5 +626,8 @@ def compare_sentences(sentence1,sentence2,mask=None,tokenizer=None,text_encoder=
     text_embedding1 = get_text_embeds_without_uncond([sentence1], tokenizer, text_encoder)
     text_embedding2 = get_text_embeds_without_uncond([sentence2], tokenizer, text_encoder)
     cos = torch.nn.CosineSimilarity(dim=0, eps=1e-6)
-    result = cos(text_embedding1.view(-1) *mask, text_embedding2.view(-1)*mask).item()
+    if mask : 
+        result = cos(text_embedding1.view(-1) *mask, text_embedding2.view(-1)*mask).item()
+    else : 
+        result = cos(text_embedding1.view(-1) , text_embedding2.view(-1)).item()
     return result
