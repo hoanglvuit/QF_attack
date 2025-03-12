@@ -134,7 +134,7 @@ def vari_generation(string1, string2, char_list, vari_loc = None):
     string2 = ''.join(string2_list)
     return string1, string2
 
-def genetic(sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False,tournament = False, max_optimize = False):
+def genetic(target_sentence = None,sentence=None, char_list=None, length=None, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False,tournament = False, max_optimize = False):
     generation_list = init_pool(char_list, length,generateion_scale)
     res = []
     score_list={}
@@ -149,7 +149,7 @@ def genetic(sentence, char_list, length, generation_num = 50, generateion_scale 
             if remain :  
                 pool.append(candidate)
 
-        generation_list = select(sentence, pool, generateion_scale, score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament, max_optimize = max_optimize )
+        generation_list = select(target_sentence = target_sentence,sentence=sentence, pool=pool, generateion_scale =generateion_scale , score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament, max_optimize = max_optimize )
         print(generation_list)
 
     if max_optimize : 
@@ -157,8 +157,11 @@ def genetic(sentence, char_list, length, generation_num = 50, generateion_scale 
     else : 
         res = sorted(score_list.items(),key = lambda x:x[1],reverse = False)[0:5]
     return res
-def select(sentence, pool, generateion_scale, mask=None, score_list=None, tokenizer=None, text_encoder=None,tournament = False,max_optimize = False):
-    text_embedding = get_text_embeds_without_uncond([sentence], tokenizer, text_encoder)
+def select(target_sentence = None,sentence=None, pool=None, generateion_scale=None, mask=None, score_list=None, tokenizer=None, text_encoder=None,tournament = False,max_optimize = False):
+    if target_sentence : 
+        text_embedding = get_text_embeds_without_uncond([target_sentence], tokenizer, text_encoder)
+    else : 
+        text_embedding = get_text_embeds_without_uncond([sentence], tokenizer, text_encoder)
     pool_score = []
     if score_list == None:
         score_list = {}
