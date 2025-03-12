@@ -83,18 +83,29 @@ def search_min_sentence_iteration(sentence, char_list, length, iter_times, mask=
 # example: search_min_sentence_iteration(sen, chapter, 5, 1, mask.view(-1))
 
 # genetic algorithm
-def get_generation(string1, string2, char_list, cross_loc = None, variation_loc = None,ran_vari=None):
+def tournament_selection(pool_score, max_optimize = False) : 
+    n = 3 
+    pool = []
+    random.shuffle(pool_score) 
+    if len(pool_score) % 3 != 0 : 
+        n = 2
+    if  max_optimize : 
+        for i in range(len(pool_score)//n) : 
+            sub_pool = pool_score[i*n:(i+1)*n] 
+            sorted_sub_pool = sorted(sub_pool,reverse=True) 
+            pool.append(sorted_sub_pool[0][1])
+        return pool 
+    for i in range(len(pool_score)//n) : 
+        sub_pool = pool_score[i*n:(i+1)*n] 
+        sorted_sub_pool = sorted(sub_pool) 
+        pool.append(sorted_sub_pool[0][1])
+    return pool 
+def get_generation(string1, string2, char_list, cross_loc = None, variation_loc = None):
     if len(string1) != len(string2):
         print("length of string1 and string2 should be the same")
         return None
     string1, string2 = cross_generation(string1, string2)
-    thres = None
-    if ran_vari == None : 
-        thres = 0 
-    else : 
-        thres = ran_vari 
-    if random.random() > thres : 
-        string1, string2 = vari_generation(string1, string2, char_list)
+    string1, string2 = vari_generation(string1, string2, char_list)
     return string1, string2
     
 def cross_generation(string1, string2, cross_loc = None):
@@ -123,7 +134,7 @@ def vari_generation(string1, string2, char_list, vari_loc = None):
     string2 = ''.join(string2_list)
     return string1, string2
 
-def genetic(sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False,ran_vari = None,tournament = False):
+def genetic(sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False,tournament = False, max_optimize = False):
     generation_list = init_pool(char_list, length,generateion_scale)
     res = []
     score_list={}
@@ -132,39 +143,21 @@ def genetic(sentence, char_list, length, generation_num = 50, generateion_scale 
         # print(generation_list)
         for candidate in generation_list:
             mate = random.choice(generation_list)
-            g1, g2 = get_generation(candidate, mate, char_list,ran_vari=ran_vari)
+            g1, g2 = get_generation(candidate, mate, char_list)
             pool.append(g1)
             pool.append(g2)
             if remain :  
                 pool.append(candidate)
 
-        generation_list = select(sentence, pool, generateion_scale, score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament )
+        generation_list = select(sentence, pool, generateion_scale, score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament, max_optimize = max_optimize )
         print(generation_list)
 
-        
-    res = sorted(score_list.items(),key = lambda x:x[1],reverse = False)[0:5]
+    if max_optimize : 
+        res = sorted(score_list.items(),key = lambda x:x[1],reverse = True)[0:5]
+    else : 
+        res = sorted(score_list.items(),key = lambda x:x[1],reverse = False)[0:5]
     return res
-
-def tournament_selection(pool_score, m = False) : 
-    n = 3 
-    pool = []
-    random.shuffle(pool_score) 
-    if len(pool_score) % 3 != 0 : 
-        n = 2
-    if m == True : 
-        for i in range(len(pool_score)//n) : 
-            sub_pool = pool_score[i*n:(i+1)*n] 
-            sorted_sub_pool = sorted(sub_pool,reverse=True) 
-            pool.append(sorted_sub_pool[0][1])
-        return pool 
-    for i in range(len(pool_score)//n) : 
-        sub_pool = pool_score[i*n:(i+1)*n] 
-        sorted_sub_pool = sorted(sub_pool) 
-        pool.append(sorted_sub_pool[0][1])
-    return pool 
-
-
-def select(sentence, pool, generateion_scale, mask=None, score_list=None, tokenizer=None, text_encoder=None,tournament = False):
+def select(sentence, pool, generateion_scale, mask=None, score_list=None, tokenizer=None, text_encoder=None,tournament = False,max_optimize = False):
     text_embedding = get_text_embeds_without_uncond([sentence], tokenizer, text_encoder)
     pool_score = []
     if score_list == None:
@@ -182,55 +175,16 @@ def select(sentence, pool, generateion_scale, mask=None, score_list=None, tokeni
         score_list[candidate]=temp_score
         # print('genetic prompt:',candidate,temp_score)
         pool_score.append((temp_score, candidate))
-    if tournament == True : 
-        return tournament_selection(pool_score)
-    sorted_pool = sorted(pool_score)
-    selected_generation = [x[1] for x in sorted_pool]
-    return selected_generation[0:generateion_scale]
-### MAX
 
-def genetic_max(target_sentence,sentence, char_list, length, generation_num = 50, generateion_scale = 20, mask=None, tokenizer=None, text_encoder=None, remain = False,tournament = False):
-    generation_list = init_pool(char_list, length)
-    res = []
-    score_list={}
-    for generation in range(generation_num):
-        pool = []
-        # print(generation_list)
-        for candidate in generation_list:
-            mate = random.choice(generation_list)
-            g1, g2 = get_generation(candidate, mate, char_list)
-            pool.append(g1)
-            pool.append(g2)
-            if remain :  
-                pool.append(candidate)
-        # pool.extend(res)
-        generation_list = select_max(target_sentence,sentence, pool, generateion_scale, score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament = tournament)
-        # print(score_list)
-        
-    res = sorted(score_list.items(),key = lambda x:x[1],reverse = True)[0:5]
-    return res
-
-def select_max(target_sentence,sentence, pool, generateion_scale, mask=None, score_list=None, tokenizer=None, text_encoder=None,tournament = False):
-    text_embedding = get_text_embeds_without_uncond([target_sentence], tokenizer, text_encoder)
-    pool_score = []
-    if score_list == None:
-        score_list = {}
-    for candidate in pool:
-        if candidate in score_list.keys():
-            temp_score = score_list[candidate]
-            pool_score.append((temp_score, candidate))
-            continue
-        candidate_text = sentence + ' ' + candidate
-        if mask == None:
-            temp_score = cos_embedding_text(text_embedding, candidate_text, tokenizer=tokenizer, text_encoder=text_encoder)
-        else:
-            temp_score = cos_embedding_text(text_embedding, candidate_text, mask, tokenizer=tokenizer, text_encoder=text_encoder)
-        score_list[candidate]=temp_score
-        # print('genetic prompt:',candidate,temp_score)
-        pool_score.append((temp_score, candidate))
+    # tournament selection 
     if tournament == True : 
-        return tournament_selection(pool_score,m=True)
-    sorted_pool = sorted(pool_score,reverse = True)
+        return tournament_selection(pool_score,max_optimize)
+    # Have guide ? 
+    if max_optimize : 
+        sorted_pool = sorted(pool_score,reverse=True) 
+    else : 
+        sorted_pool = sorted(pool_score)
+    
     selected_generation = [x[1] for x in sorted_pool]
     return selected_generation[0:generateion_scale]
 
