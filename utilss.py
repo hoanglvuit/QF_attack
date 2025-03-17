@@ -35,57 +35,55 @@ def get_char_table():
 def cos_mask(a,b,mask):
     return cos(a*mask, b*mask)
 
-def search_min_char(sentence_embading, sentences, char_list, k, mask=None, tokenizer=None, text_encoder=None, top_k = 1):
-    candidate_list = []
-    for modify_sentence in sentences : 
-        for c in char_list:
-            change_sentence = list(modify_sentence)
-            change_sentence[k] = c
-            change_sentence = ''.join(change_sentence)
-            
-            change_embading = get_text_embeds_without_uncond([change_sentence], tokenizer, text_encoder)
-            
-            if mask == None:
-                temp_cos=cos(sentence_embading.view(-1), change_embading.view(-1))
-            else:
-                temp_cos=cos_mask(sentence_embading.view(-1), change_embading.view(-1), mask)
-            candidate_list.append((temp_cos,change_sentence)) 
-    sorted_list = sorted(candidate_list) 
-    sorted_candidate = [x[1] for x in sorted_list]
-    sorted_score = [x[0] for x in sorted_list]
-    # print(min_cos,modify_sentence,"char",min_char)
-    return sorted_candidate[:top_k], sorted_score[:top_k]
-def beamsearch(sentence, char_list, length, iter_times, mask=None, random_choice=False, tokenizer=None, text_encoder=None, top_k = 1 , remain = True):
-    sentence_embedding = get_text_embeds_without_uncond([sentence], tokenizer, text_encoder)
-    modify_sentences = []
-    score = []
-    if random_choice:
-        first_c = random.choice(char_list)
-        modify_sentence = copy.deepcopy(sentence)+' '+first_c
-        length -= 1
-        modify_sentences.append(modify_sentence)
-    else:
-        modify_sentence = copy.deepcopy(sentence)+' '
-        modify_sentences.append(modify_sentence)
-    for i in range(length):
-        modify_sentences = [sentence + ' ' for sentence in modify_sentences]
-        modify_sentences,_ = search_min_char(sentence_embedding, modify_sentences, char_list, -1, tokenizer=tokenizer, text_encoder=text_encoder,top_k = top_k)
-    if remain : 
-        modify_sentences = modify_sentences[:top_k] 
-    else :  
-        modify_sentences = modify_sentences[:1]
-    # modify_sentences = [modify_sentence]
-    # print(modify_sentences)
-    for i in range(iter_times):
-        for k in range(length, 0, -1):
-            modify_sentences, score = search_min_char(sentence_embedding, modify_sentences, char_list, -k, mask, tokenizer=tokenizer, text_encoder=text_encoder,top_k = top_k)
-    return modify_sentences[0], score[0]
-# example: search_min_sentence_iteration(sen, chapter, 5, 1, mask.view(-1))
-
-
-
-
-
+def search(target_embedding=None, target_sentence = None,sentence=None,char_list=None, pool=None, mask=None, tokenizer=None, text_encoder=None,num = None, pro=None):
+    pool_score = []
+    query_time = 0
+    for candidate in pool : 
+        pertub_sentence = sentence + ' ' + candidate 
+        query_time += 1 
+        if mask == None : 
+            temp_score = cos_embedding_text(target_embedding, pertub_sentence, tokenizer=tokenizer, text_encoder=text_encoder)
+        else : 
+            temp_score = cos_embedding_text(target_embedding, pertub_sentence, mask, tokenizer=tokenizer, text_encoder=text_encoder)
+        pool_score.append((temp_score,candidate)) 
+    if target_sentence :
+      sorted_pool = sorted(pool_score,reverse=True)
+    else : 
+      sorted_pool = sorted(pool_score,reverse=False)
+    candidates = [x[1] for x in sorted_pool]
+    scores = [x[0] for x in sorted_pool] 
+    if pro != None : 
+        top_candidates,top_scores = select_top_candidates_softmax(candidates, scores, k=num, temperature=pro)
+    else : 
+        top_candidates = candidates[:num]
+        top_scores = scores[:num]
+    # print(top_candidates)
+    # print(top_scores)
+    # print('-------------------------')
+    return top_candidates,top_scores,query_time
+def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None,  mask=None, tokenizer=None, text_encoder=None, num = [500,50,10,3], pro = [0.03,0.01, 0.005,None]):
+    query_time = 1
+    scores = None
+    if target_sentence != None : 
+        sentence_embedding = get_text_embeds_without_uncond([target_sentence], tokenizer, text_encoder)
+    else : 
+        sentence_embedding = get_text_embeds_without_uncond([sentence], tokenizer, text_encoder)
+    candidates = char_list 
+    iteration = length - 1 
+    for i in range(iteration) : 
+        pool = []
+        for candidate in candidates : 
+            for char in char_list : 
+                pool.append(candidate + char) 
+        if target_sentence != None : 
+          candidates, scores,times = search(sentence_embedding,target_sentence,sentence,char_list,pool,mask,tokenizer,text_encoder,num[i],pro[i])
+        else : 
+          candidates, scores,times = search(sentence_embedding,sentence,char_list,pool,mask,tokenizer,text_encoder,num[i])
+        query_time += times
+    print(query_time)
+    print(scores)
+    return candidates
+        
 # genetic algorithm
 def tournament_selection(pool_score, flag = None) : 
     n = 3 
@@ -343,7 +341,7 @@ def generate_images(prompts,pipe,generator) :
     images = [] 
     for prompt in prompts : 
         with autocast('cuda') : 
-            image = pipe([prompt],generator = generator,num_inference_steps=50,num_images_per_prompt = 5,safety_checker = None).images
+            image = pipe([prompt],generator = generator,num_inference_steps=50,num_images_per_prompt = 10).images
             images.append(image)
     return images
 def clip_score(prompts,images): 
@@ -372,3 +370,14 @@ def compare_sentences(sentence1,sentence2,mask=None,tokenizer=None,text_encoder=
     else : 
         result = cos(text_embedding1.view(-1) , text_embedding2.view(-1)).item()
     return result
+def get_min_character(key_word,tokenizer,text_encoder) : 
+    char_collection = list(key_word) 
+    min_score = 1
+    min_word = ''
+    for ind,char in enumerate(char_collection) :
+        s_word = ''.join(char_collection[:ind] + char_collection[ind+1:]) 
+        score = compare_sentences(key_word,s_word,None,tokenizer,text_encoder)
+        if score < min_score : 
+            min_word = char
+            min_score = score
+    return min_word
