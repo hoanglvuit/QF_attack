@@ -9,6 +9,8 @@ import math
 import gc 
 from open_clip import tokenizer
 from torch import autocast
+import base64
+from openai import OpenAI
 
 random.seed(28)
 torch.manual_seed(28)
@@ -35,7 +37,18 @@ def get_char_table():
 def cos_mask(a,b,mask):
     return cos(a*mask, b*mask)
 
-def search(target_embedding=None, target_sentence = None,sentence=None,char_list=None, pool=None, mask=None, tokenizer=None, text_encoder=None,num = None, pro=None):
+def select_top_candidates_softmax(candidates, scores, k=None, temperature=None):
+    scores = np.array(scores)
+    exp_scores = np.exp(scores / temperature)  
+    probabilities = exp_scores / np.sum(exp_scores) 
+    
+    selected_indices = np.random.choice(len(candidates), size=k, replace=False, p=probabilities)
+    selected_candidates = [candidates[i] for i in selected_indices]
+    selected_scores = [scores[i] for i in selected_indices]
+    
+    return selected_candidates,selected_scores
+
+def search(target_embedding=None, target_sentence = None,sentence=None, pool=None, mask=None, tokenizer=None, text_encoder=None,num = None, pro=None):
     pool_score = []
     query_time = 0
     for candidate in pool : 
@@ -57,9 +70,6 @@ def search(target_embedding=None, target_sentence = None,sentence=None,char_list
     else : 
         top_candidates = candidates[:num]
         top_scores = scores[:num]
-    # print(top_candidates)
-    # print(top_scores)
-    # print('-------------------------')
     return top_candidates,top_scores,query_time
 def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None,  mask=None, tokenizer=None, text_encoder=None, num = [500,50,10,3], pro = [0.03,0.01, 0.005,None]):
     query_time = 1
@@ -76,9 +86,9 @@ def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None
             for char in char_list : 
                 pool.append(candidate + char) 
         if target_sentence != None : 
-          candidates, scores,times = search(sentence_embedding,target_sentence,sentence,char_list,pool,mask,tokenizer,text_encoder,num[i],pro[i])
+          candidates, scores,times = search(sentence_embedding,target_sentence,sentence,pool,mask,tokenizer,text_encoder,num[i],pro[i])
         else : 
-          candidates, scores,times = search(sentence_embedding,sentence,char_list,pool,mask,tokenizer,text_encoder,num[i])
+          candidates, scores,times = search(sentence_embedding,sentence,pool,mask,tokenizer,text_encoder,num[i])
         query_time += times
     print(query_time)
     print(scores)
@@ -86,21 +96,21 @@ def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None
         
 # genetic algorithm
 def tournament_selection(pool_score, flag = None) : 
-    n = 3 
     pool = []
-    random.shuffle(pool_score) 
-    if len(pool_score) % 3 != 0 : 
-        n = 2
-    if  flag != None : 
-        for i in range(len(pool_score)//n) : 
-            sub_pool = pool_score[i*n:(i+1)*n] 
-            sorted_sub_pool = sorted(sub_pool,reverse=True) 
-            pool.append(sorted_sub_pool[0][1])
-        return pool 
-    for i in range(len(pool_score)//n) : 
-        sub_pool = pool_score[i*n:(i+1)*n] 
-        sorted_sub_pool = sorted(sub_pool) 
-        pool.append(sorted_sub_pool[0][1])
+    if  flag != None :
+        for _ in range(2) : 
+            random.shuffle(pool_score) 
+            for i in range(0,len(pool_score),4) : 
+                sub_pool = pool_score[i:i+4] 
+                sorted_sub_pool = sorted(sub_pool,reverse=True) 
+                pool.append(sorted_sub_pool[0][1])
+    else : 
+        for _ in range(2) : 
+            random.shuffle(pool_score) 
+            for i in range(0,len(pool_score),4) : 
+                sub_pool = pool_score[i:i+4] 
+                sorted_sub_pool = sorted(sub_pool) 
+                pool.append(sorted_sub_pool[0][1])
     return pool 
 def get_generation(string1, string2, char_list):
     if len(string1) != len(string2):
@@ -141,16 +151,19 @@ def genetic(target_sentence = None,sentence=None, char_list=None, length=None, g
     score_list={}
     for _ in range(generation_num):
         pool = []
-        for candidate in generation_list:
-            mate = random.choice(generation_list)
+        indices = np.arange(generateion_scale)
+        np.random.shuffle(indices)
+        for i in range(0,len(generation_list),2) : 
+            candidate = generation_list[indices[i]] 
+            mate = generation_list[indices[i+1]]
             g1, g2 = get_generation(candidate, mate, char_list)
             pool.append(g1)
             pool.append(g2)  
             pool.append(candidate)
+            pool.append(mate)
 
         generation_list, times  = select(target_sentence = target_sentence,sentence=sentence, pool=pool, generateion_scale =generateion_scale , score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament)
         query_time += times
-        #print(generation_list)
 
     if target_sentence != None : 
         res = sorted(score_list.items(),key = lambda x:x[1],reverse = True)[0:3]
@@ -381,3 +394,4 @@ def get_min_character(key_word,tokenizer,text_encoder) :
             min_word = char
             min_score = score
     return min_word
+
