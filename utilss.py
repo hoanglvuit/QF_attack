@@ -144,7 +144,7 @@ def vari_generation(string1, string2, char_list):
     string2 = ''.join(string2_list)
     return string1, string2
 
-def genetic(target_sentence = None,sentence=None, char_list=None, length=None, generation_num = 50, generateion_scale = 100, mask=None, tokenizer=None, text_encoder=None,tournament = False):
+def POPOP(target_sentence = None,sentence=None, char_list=None, length=None, generation_num = 50, generateion_scale = 100, mask=None, tokenizer=None, text_encoder=None,tournament = False):
     generation_list = init_pool(char_list, length,generateion_scale)
     query_time = 0
     res = []
