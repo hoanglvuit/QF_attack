@@ -63,7 +63,7 @@ def search(target_embedding=None, target_sentence = None,sentence=None, pool=Non
         else : 
             temp_score = cos_embedding_text(target_embedding, pertub_sentence, mask, tokenizer=tokenizer, text_encoder=text_encoder)
         pool_score.append((temp_score,candidate)) 
-    if target_sentence :
+    if target_sentence != None :
       sorted_pool = sorted(pool_score,reverse=True)
     else : 
       sorted_pool = sorted(pool_score,reverse=False)
@@ -92,10 +92,7 @@ def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None
         for candidate in candidates : 
             for char in char_list : 
                 pool.append(candidate + char) 
-        if target_sentence != None : 
-          candidates, scores,times = search(sentence_embedding,target_sentence,sentence,pool,mask,tokenizer,text_encoder,num[i],pro[i])
-        else : 
-          candidates, scores,times = search(sentence_embedding,sentence,pool,mask,tokenizer,text_encoder,num[i])
+        candidates, scores,times = search(sentence_embedding,target_sentence,sentence,pool,mask,tokenizer,text_encoder,num[i],pro[i])
         query_time += times
     
     return list(zip(candidates,scores)) , query_time
