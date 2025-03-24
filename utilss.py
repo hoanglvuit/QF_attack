@@ -393,7 +393,7 @@ def get_min_character(key_word,tokenizer,text_encoder) :
     char_collection = list(set(key_word)) 
     min_score = 1
     min_word = ''
-    for char in enumerate(char_collection) :
+    for char in char_collection :
         s_word = key_word.replace(char,'')
         score = compare_sentences(key_word,s_word,None,tokenizer,text_encoder)
         if score < min_score : 
