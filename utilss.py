@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import math
 import gc 
 from open_clip import tokenizer
+import base64
 from torch import autocast
 import base64
 from openai import OpenAI
@@ -25,12 +26,14 @@ def get_text_embeds_without_uncond(prompt, tokenizer, text_encoder):
         # text_embeddings = text_encoder(text_input.input_ids)[0]
     return text_embeddings
 
-def get_char_table():
-    char_table=['·','~','!','@','#','$','%','^','&','*','(',')','=','-','*','+','.','<','>','?',',','\'',';',':','|','\\','/']
+def get_char_table(c = None):
+    char_table=['·','~','!','@','#','$','%','^','*','(',')','=','-','*','.','<','>','?',',','\'',';',':','|','\\','/']
     for i in range(ord('a'),ord('z')+1):
         char_table.append(chr(i))
     for i in range(0,10):
         char_table.append(str(i))
+    if c != None : 
+        char_table = [i for i in char_table if i not in [c]]
     return char_table
 
 # greedy algorithm
@@ -50,6 +53,7 @@ def select_top_candidates_softmax(candidates, scores, k=None, temperature=None):
 
 def search(target_embedding=None, target_sentence = None,sentence=None, pool=None, mask=None, tokenizer=None, text_encoder=None,num = None, pro=None):
     pool_score = []
+    print(num,pro)
     query_time = 0
     for candidate in pool : 
         pertub_sentence = sentence + ' ' + candidate 
@@ -63,15 +67,18 @@ def search(target_embedding=None, target_sentence = None,sentence=None, pool=Non
       sorted_pool = sorted(pool_score,reverse=True)
     else : 
       sorted_pool = sorted(pool_score,reverse=False)
+    # if  num == 400 : 
+    #     pool,scores = k_mean(sorted_pool[:num*4],num = num)
+    #     return pool,scores,0
     candidates = [x[1] for x in sorted_pool]
     scores = [x[0] for x in sorted_pool] 
     if pro != None : 
-        top_candidates,top_scores = select_top_candidates_softmax(candidates, scores, k=num, temperature=pro)
+        top_candidates,top_scores = select_top_candidates_softmax(candidates[:num*4], scores[:num*4], k=num, temperature=pro)
     else : 
         top_candidates = candidates[:num]
         top_scores = scores[:num]
     return top_candidates,top_scores,query_time
-def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None,  mask=None, tokenizer=None, text_encoder=None, num = [500,50,10,3], pro = [0.03,0.01, 0.005,None]):
+def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None,  mask=None, tokenizer=None, text_encoder=None, num = [400,100,50,3], pro = [None,None, None,None]):
     query_time = 1
     scores = None
     if target_sentence != None : 
@@ -90,9 +97,8 @@ def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None
         else : 
           candidates, scores,times = search(sentence_embedding,sentence,pool,mask,tokenizer,text_encoder,num[i])
         query_time += times
-    print(query_time)
-    print(scores)
-    return candidates
+    
+    return list(zip(candidates,scores)) , query_time
         
 # genetic algorithm
 def tournament_selection(pool_score, flag = None) : 
@@ -384,14 +390,98 @@ def compare_sentences(sentence1,sentence2,mask=None,tokenizer=None,text_encoder=
         result = cos(text_embedding1.view(-1) , text_embedding2.view(-1)).item()
     return result
 def get_min_character(key_word,tokenizer,text_encoder) : 
-    char_collection = list(key_word) 
+    char_collection = list(set(key_word)) 
     min_score = 1
     min_word = ''
-    for ind,char in enumerate(char_collection) :
-        s_word = ''.join(char_collection[:ind] + char_collection[ind+1:]) 
+    for char in enumerate(char_collection) :
+        s_word = key_word.replace(char,'')
         score = compare_sentences(key_word,s_word,None,tokenizer,text_encoder)
         if score < min_score : 
             min_word = char
             min_score = score
+    print('word: ',key_word,'min_word: ',min_word,'min_score: ',min_score) 
     return min_word
+# Function to encode the image
+def encode_image(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
 
+def evaluation(obj_1, obj_2, images, client):
+    """
+    obj_1, obj_2 : string 
+    images: list PIL image 
+    """
+    for ind, image in enumerate(images):
+        image.save(f"image{ind}.png")
+
+    ins = f"How many images contain both {obj_1} and {obj_2}? Respond with only a number."
+    print(ins)
+    messages = [
+        {"role": "system", "content": "Only respond with a single integer, no text."},
+        {"role": "user", "content": [{"type": "text", "text": ins}]}
+    ]
+
+    for i in range(len(images)): 
+        image_path = f"image{i}.png"  
+        base64_image = encode_image(image_path)
+        messages[1]["content"].append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{base64_image}", "detail": "low"},
+        })
+
+    completion = client.chat.completions.create(
+        model="gpt-4o",
+        messages=messages,
+        temperature=0,
+        top_p=0,
+    )
+
+    return int(completion.choices[0].message.content.strip())  
+
+
+# import numpy as np
+# from Bio import pairwise2
+# from sklearn.manifold import MDS
+# from sklearn.cluster import KMeans
+# from difflib import SequenceMatcher
+
+
+# def longest_common_substring(s1, s2):
+#     matcher = SequenceMatcher(None, s1, s2)
+#     match = matcher.find_longest_match(0, len(s1), 0, len(s2))
+#     return len(s1[match.a: match.a + match.size])
+
+# # Hàm tính khoảng cách dựa trên global alignment
+# def compute_distance(seq1, seq2):
+#     alignment = longest_common_substring(seq1,seq2)
+#     max_score = len(seq1) * 1 
+#     distance = max_score - alignment 
+#     return distance
+
+# def k_mean(pool_score,n=5,k=20,num=0) : 
+#     strings = [can[1] for can in pool_score]
+#     scores = [can[0] for can in pool_score]
+#     B = []
+#     n = len(strings)
+#     distance_matrix = np.zeros((n, n))
+    
+#     for i in range(n):
+#         for j in range(i, n):
+#             distance = compute_distance(strings[i], strings[j])
+#             distance_matrix[i, j] = distance
+#             distance_matrix[j, i] = distance
+    
+#     # Giảm chiều dữ liệu với MDS
+#     mds = MDS(n_components=n, dissimilarity="precomputed", random_state=42)
+#     coordinates = mds.fit_transform(distance_matrix)
+    
+#     # Phân cụm bằng K-means
+#     kmeans = KMeans(n_clusters=k) 
+#     clusters = kmeans.fit_predict(coordinates)
+#     A = []
+#     for i in range(k) : 
+#         A+= list(np.array(strings)[clusters == i][:int(num/k)])
+#         B+= list(np.array(scores)[clusters == i][:int(num/k)])
+#     return A ,B
+    
+    
