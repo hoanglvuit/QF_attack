@@ -12,7 +12,9 @@ import base64
 from torch import autocast
 import base64
 from openai import OpenAI
-
+from google import genai
+from google.genai import types
+import re
 random.seed(28)
 torch.manual_seed(28)
 cos = torch.nn.CosineSimilarity(dim=0, eps=1e-6)
@@ -51,7 +53,7 @@ def select_top_candidates_softmax(candidates, scores, k=None, temperature=None):
     
     return selected_candidates,selected_scores
 
-def search(target_embedding=None, target_sentence = None,sentence=None, pool=None, mask=None, tokenizer=None, text_encoder=None,num = None, pro=None):
+def search(target_embedding=None,sentence=None, pool=None, mask=None, tokenizer=None, text_encoder=None,num = None, pro=None,optimize_max=True):
     pool_score = []
     print(num,pro)
     query_time = 0
@@ -63,13 +65,10 @@ def search(target_embedding=None, target_sentence = None,sentence=None, pool=Non
         else : 
             temp_score = cos_embedding_text(target_embedding, pertub_sentence, mask, tokenizer=tokenizer, text_encoder=text_encoder)
         pool_score.append((temp_score,candidate)) 
-    if target_sentence != None :
+    if optimize_max == True :
       sorted_pool = sorted(pool_score,reverse=True)
     else : 
       sorted_pool = sorted(pool_score,reverse=False)
-    # if  num == 400 : 
-    #     pool,scores = k_mean(sorted_pool[:num*4],num = num)
-    #     return pool,scores,0
     candidates = [x[1] for x in sorted_pool]
     scores = [x[0] for x in sorted_pool] 
     if pro != None : 
@@ -78,13 +77,10 @@ def search(target_embedding=None, target_sentence = None,sentence=None, pool=Non
         top_candidates = candidates[:num]
         top_scores = scores[:num]
     return top_candidates,top_scores,query_time
-def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None,  mask=None, tokenizer=None, text_encoder=None, num = [400,100,50,3], pro = [None,None, None,None]):
+def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None,  mask=None, tokenizer=None, text_encoder=None, num = [140,140,140,3], pro = [None,None, None,None],optimize_max=True):
     query_time = 1
     scores = None
-    if target_sentence != None : 
-        sentence_embedding = get_text_embeds_without_uncond([target_sentence], tokenizer, text_encoder)
-    else : 
-        sentence_embedding = get_text_embeds_without_uncond([sentence], tokenizer, text_encoder)
+    sentence_embedding = get_text_embeds_without_uncond([target_sentence], tokenizer, text_encoder)
     candidates = char_list 
     iteration = length - 1 
     for i in range(iteration) : 
@@ -92,15 +88,15 @@ def beamsearch(target_sentence = None,sentence=None, char_list=None, length=None
         for candidate in candidates : 
             for char in char_list : 
                 pool.append(candidate + char) 
-        candidates, scores,times = search(sentence_embedding,target_sentence,sentence,pool,mask,tokenizer,text_encoder,num[i],pro[i])
+        candidates, scores,times = search(sentence_embedding,sentence,pool,mask,tokenizer,text_encoder,num[i],pro[i],optimize_max)
         query_time += times
     
     return list(zip(candidates,scores)) , query_time
         
 # genetic algorithm
-def tournament_selection(pool_score, flag = None) : 
+def tournament_selection(pool_score, optimize_max = True) : 
     pool = []
-    if  flag != None :
+    if  optimize_max == True :
         for _ in range(2) : 
             random.shuffle(pool_score) 
             for i in range(0,len(pool_score),4) : 
@@ -147,7 +143,7 @@ def vari_generation(string1, string2, char_list):
     string2 = ''.join(string2_list)
     return string1, string2
 
-def POPOP(target_sentence = None,sentence=None, char_list=None, length=None, generation_num = 50, generateion_scale = 100, mask=None, tokenizer=None, text_encoder=None,tournament = False):
+def POPOP(target_sentence = None,sentence=None, char_list=None, length=None, generation_num = 50, generateion_scale = 100, mask=None, tokenizer=None, text_encoder=None,tournament = True, optimize_max = True):
     generation_list = init_pool(char_list, length,generateion_scale)
     query_time = 0
     res = []
@@ -165,7 +161,7 @@ def POPOP(target_sentence = None,sentence=None, char_list=None, length=None, gen
             pool.append(candidate)
             pool.append(mate)
 
-        generation_list, times  = select(target_sentence = target_sentence,sentence=sentence, pool=pool, generateion_scale =generateion_scale , score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament)
+        generation_list, times  = select(target_sentence = target_sentence,sentence=sentence, pool=pool, generateion_scale =generateion_scale , score_list=score_list, mask=mask, tokenizer=tokenizer, text_encoder=text_encoder,tournament =tournament,optimize_max= optimize_max)
         query_time += times
 
     if target_sentence != None : 
@@ -174,7 +170,7 @@ def POPOP(target_sentence = None,sentence=None, char_list=None, length=None, gen
         res = sorted(score_list.items(),key = lambda x:x[1],reverse = False)[0:3]
     print(query_time)
     return res
-def select(target_sentence = None,sentence=None, pool=None, generateion_scale=None, mask=None, score_list=None, tokenizer=None, text_encoder=None,tournament = False):
+def select(target_sentence = None,sentence=None, pool=None, generateion_scale=None, mask=None, score_list=None, tokenizer=None, text_encoder=None,tournament = False,optimize_max=True):
     query_time = 1
     if target_sentence : 
         text_embedding = get_text_embeds_without_uncond([target_sentence], tokenizer, text_encoder)
@@ -200,9 +196,9 @@ def select(target_sentence = None,sentence=None, pool=None, generateion_scale=No
 
     # tournament selection 
     if tournament == True : 
-        return tournament_selection(pool_score,target_sentence), query_time
+        return tournament_selection(pool_score,optimize_max), query_time
     # Have guide ? 
-    if target_sentence != None : 
+    if optimize_max == True : 
         sorted_pool = sorted(pool_score,reverse=True) 
     else : 
         sorted_pool = sorted(pool_score)
@@ -278,16 +274,7 @@ def object_key_2(sentence_list, object_word, thres = 10, tokenizer=None, text_en
     return total_sign
 
 
-def image_grid(imgs, rows, cols):
-    assert len(imgs) == rows*cols
 
-    w, h = imgs[0].size
-    grid = Image.new('RGB', size=(cols*w, rows*h))
-    grid_w, grid_h = grid.size
-    
-    for i, img in enumerate(imgs):
-        grid.paste(img, box=(i%cols*w, i//cols*h))
-    return grid
 def show_image_groups_with_prompts(image_groups, prompts, score_list, figsize=(25, 100)):
     """
     Display groups of images with their corresponding prompts and scores.
@@ -351,21 +338,21 @@ def show_image_groups_with_prompts(image_groups, prompts, score_list, figsize=(2
     # Adjust layout
     plt.subplots_adjust(left=0.2, right=0.98, top=0.98, bottom=0.02)
     plt.show()
-def generate_images(prompts,pipe,generator) : 
+def generate_images(prompts,pipe,generator,num_image = 10) : 
     torch.cuda.empty_cache()
     gc.collect()
     images = [] 
     for prompt in prompts : 
         with autocast('cuda') : 
-            image = pipe([prompt],generator = generator,num_inference_steps=50,num_images_per_prompt = 10).images
+            image = pipe([prompt],generator = generator,num_inference_steps=50,num_images_per_prompt = num_image).images
             images.append(image)
     return images
-def clip_score(prompts,images): 
+def clip_score(prompts,images,preprocess,model): 
     simi = 0 
     score_list = []
     for i in range(len(prompts)): 
-        image_input = torch.tensor(np.stack([preprocess(img) for img in images[i]])).to(device)
-        text_tokens = tokenizer.tokenize([prompts[i]]*5).to(device)
+        image_input = torch.tensor(np.stack([preprocess(img) for img in images[i]])).to('cuda')
+        text_tokens = tokenizer.tokenize([prompts[i]]*5).to('cuda')
         with torch.no_grad():
             image_features = model.encode_image(image_input).float()
             text_features = model.encode_text(text_tokens).float()
@@ -434,6 +421,41 @@ def evaluation(obj_1, obj_2, images, client):
     )
 
     return int(completion.choices[0].message.content.strip())  
+
+def generate_sentences(object_1,object_2,gemini_key) : 
+    client_gemini = genai.Client(api_key=gemini_key)
+    prompt = f"Generate 50 sentences for text-to-image that have an simple object (only 1 word such as '{object_1}') and  'and {object_2}' at the end"
+    print(prompt)
+    response = client_gemini.models.generate_content(
+        model="gemini-2.0-flash", contents=prompt,
+        config=types.GenerateContentConfig(
+        temperature=0,
+        topP = 1,
+        topK=1,      
+        )
+    )
+    sentence_list =  [s.rstrip('.') for s in re.findall(r'\d+\.\s+(.*)', response.text)]
+    extra_key = " and " + object_2 
+    return sentence_list,extra_key 
+
+def find_mask(target_sentence,sentence,sentence_list,extra_key,tokenizer,text_encoder,start = 1.1,end = 2) : 
+    mask = None 
+    score = None 
+    thresholds = np.arange(start,end,0.05) 
+    for thres in thresholds : 
+        mask= object_key_1(sentence_list, extra_key, thres=thres, tokenizer=tokenizer, text_encoder=text_encoder,use_avr = True)
+        mask_list = mask.tolist()
+        mask = mask.view(-1)
+        print(np.sum(mask_list))
+        result = compare_sentences(target_sentence,sentence,mask,tokenizer,text_encoder) 
+        if result < 0.4  or np.sum(mask_list) < 3000: 
+            score = result 
+            print(thres)
+            break       
+    return mask,score
+
+
+
 
 
 # import numpy as np
