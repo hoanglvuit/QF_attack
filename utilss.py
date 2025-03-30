@@ -15,8 +15,7 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 import re
-random.seed(28)
-torch.manual_seed(28)
+
 cos = torch.nn.CosineSimilarity(dim=0, eps=1e-6)
 def get_text_embeds_without_uncond(prompt, tokenizer, text_encoder):
     # Tokenize text and get embeddings
@@ -120,7 +119,7 @@ def get_generation(string1, string2, char_list):
     return string1, string2
     
 def cross_generation(string1, string2):
-    cross_loc = random.randint(1, len(string1)-1)
+    cross_loc = random.randint(0, len(string1)-1)
     string1_seg1 = string1[0:cross_loc]
     string2_seg1 = string2[0:cross_loc]
     string1_list = list(string1)
@@ -134,7 +133,7 @@ def cross_generation(string1, string2):
 
 def vari_generation(string1, string2, char_list):
     vari_loc = random.randint(0, len(string1)-1)
-    vari_char = random.randint(0,len(char_list)-1)
+    vari_char = random.randint(0, len(char_list)-1)
     string1_list = list(string1)
     string2_list = list(string2)
     string1_list[vari_loc] = char_list[vari_char]
@@ -151,7 +150,7 @@ def POPOP(target_sentence = None,sentence=None, char_list=None, length=None, gen
     for _ in range(generation_num):
         pool = []
         indices = np.arange(generateion_scale)
-        np.random.shuffle(indices)
+        random.shuffle(indices)
         for i in range(0,len(generation_list),2) : 
             candidate = generation_list[indices[i]] 
             mate = generation_list[indices[i+1]]
