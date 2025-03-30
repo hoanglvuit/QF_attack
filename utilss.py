@@ -169,7 +169,7 @@ def POPOP(target_sentence = None,sentence=None, char_list=None, length=None, gen
     else : 
         res = sorted(score_list.items(),key = lambda x:x[1],reverse = False)[0:3]
     print(query_time)
-    return res
+    return res,query_time
 def select(target_sentence = None,sentence=None, pool=None, generateion_scale=None, mask=None, score_list=None, tokenizer=None, text_encoder=None,tournament = False,optimize_max=True):
     query_time = 1
     if target_sentence : 
@@ -248,30 +248,30 @@ def object_key_1(sentence_list, object_word, thres = 10, tokenizer=None, text_en
         total_sign = average_diff
     print('Ratio of mask', total_sign[total_sign>0].shape[0]/total_sign.view(-1).shape[0])
     return total_sign
-def object_key_2(sentence_list, object_word, thres = 10, tokenizer=None, text_encoder=None,use_avr = False):
-    extra_words=object_word
-    diff_list=[]
-    total_diff=0
-    for i in sentence_list:
-        sen_embed = get_text_embeds_without_uncond(i, tokenizer=tokenizer, text_encoder=text_encoder)
-        crafted_embed = get_text_embeds_without_uncond(extra_words, tokenizer=tokenizer, text_encoder=text_encoder)
-        diff_list.append(crafted_embed-sen_embed)
-        total_diff += crafted_embed-sen_embed
-    average_diff = total_diff/len(diff_list)
+# def object_key_2(sentence_list, object_word, thres = 10, tokenizer=None, text_encoder=None,use_avr = False):
+#     extra_words=object_word
+#     diff_list=[]
+#     total_diff=0
+#     for i in sentence_list:
+#         sen_embed = get_text_embeds_without_uncond(i, tokenizer=tokenizer, text_encoder=text_encoder)
+#         crafted_embed = get_text_embeds_without_uncond(extra_words, tokenizer=tokenizer, text_encoder=text_encoder)
+#         diff_list.append(crafted_embed-sen_embed)
+#         total_diff += crafted_embed-sen_embed
+#     average_diff = total_diff/len(diff_list)
 
-    total_sign=0
-    for vec in diff_list:
-        vec[vec>0]=1
-        vec[vec<0]=-1
-        total_sign+=vec
-    total_sign[abs(total_sign)<=thres]=0
-    total_sign[abs(total_sign)>thres]=1
-    average_diff[abs(average_diff)<=thres]=0
-    average_diff[abs(average_diff)>thres]=1
-    if use_avr :
-        total_sign = average_diff
-    print('Ratio of mask', total_sign[total_sign>0].shape[0]/total_sign.view(-1).shape[0])
-    return total_sign
+#     total_sign=0
+#     for vec in diff_list:
+#         vec[vec>0]=1
+#         vec[vec<0]=-1
+#         total_sign+=vec
+#     total_sign[abs(total_sign)<=thres]=0
+#     total_sign[abs(total_sign)>thres]=1
+#     average_diff[abs(average_diff)<=thres]=0
+#     average_diff[abs(average_diff)>thres]=1
+#     if use_avr :
+#         total_sign = average_diff
+#     print('Ratio of mask', total_sign[total_sign>0].shape[0]/total_sign.view(-1).shape[0])
+#     return total_sign
 
 
 
