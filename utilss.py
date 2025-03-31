@@ -375,7 +375,7 @@ def CLIP_score(folder, prompt, model, preprocess, tokenizer):
         # Tính toán điểm tương đồng trên GPU rồi mới chuyển về CPU
         similarity = (text_features @ image_features.T).cpu().numpy()
     
-    print(similarity)
+
     return np.mean(similarity)
 
 def compare_sentences(sentence1,sentence2,mask=None,tokenizer=None,text_encoder=None) : 
