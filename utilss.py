@@ -15,6 +15,8 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 import re
+import os
+
 
 cos = torch.nn.CosineSimilarity(dim=0, eps=1e-6)
 def get_text_embeds_without_uncond(prompt, tokenizer, text_encoder):
@@ -346,22 +348,26 @@ def generate_images(prompts,pipe,generator,num_image = 10) :
             image = pipe([prompt],generator = generator,num_inference_steps=50,num_images_per_prompt = num_image).images
             images.append(image)
     return images
-def clip_score(prompts,images,preprocess,model): 
-    simi = 0 
-    score_list = []
-    for i in range(len(prompts)): 
-        image_input = torch.tensor(np.stack([preprocess(img) for img in images[i]])).to('cuda')
-        text_tokens = tokenizer.tokenize([prompts[i]]*5).to('cuda')
-        with torch.no_grad():
-            image_features = model.encode_image(image_input).float()
-            text_features = model.encode_text(text_tokens).float()
+def CLIP_score(folder,prompt,model,preprocess,tokenizer) : 
+    image_folder = folder
+    image_files = [f for f in os.listdir(image_folder) if f.endswith(".png")]
+    images = torch.stack([preprocess(Image.open(os.path.join(image_folder, img))) for img in image_files])
+    #images = images.to('cuda').to(dtype=torch.float16)
+    # Tokenize a single prompt
+    text = tokenizer([prompt])  # Single prompt for all images
+    
+    # Encode images and text
+    with torch.no_grad(), torch.autocast("cuda"):
+        image_features = model.encode_image(images)
+        text_features = model.encode_text(text)
         image_features /= image_features.norm(dim=-1, keepdim=True)
         text_features /= text_features.norm(dim=-1, keepdim=True)
+    
+        # Compute similarity scores
         similarity = text_features.cpu().numpy() @ image_features.cpu().numpy().T
-        similarity = np.mean(similarity)
-        simi += similarity 
-        score_list.append(similarity)
-    return simi / len(prompts) , score_list
+
+    print(similarity)
+    return np.mean(similarity)
 
 def compare_sentences(sentence1,sentence2,mask=None,tokenizer=None,text_encoder=None) : 
     text_embedding1 = get_text_embeds_without_uncond([sentence1], tokenizer, text_encoder)
@@ -389,37 +395,48 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
-def evaluation(obj_1, obj_2, images, client):
+def SR_evaluation(obj_1, obj_2, folder, client, batch_size=30):
     """
     obj_1, obj_2 : string 
-    images: list PIL image 
+    folder: chứa ảnh .png
+    client: OpenAI API client
+    batch_size: số lượng ảnh gửi mỗi lần để tránh vượt giới hạn
     """
-    for ind, image in enumerate(images):
-        image.save(f"image{ind}.png")
+    image_files = [f for f in os.listdir(folder) if f.endswith(".png")]
+    image_files = [os.path.join(folder, img) for img in image_files]
+    
+    total_count = 0  # Biến để cộng dồn kết quả
 
     ins = f"How many images contain both {obj_1} and {obj_2}? Respond with only a number."
     print(ins)
-    messages = [
-        {"role": "system", "content": "Only respond with a single integer, no text."},
-        {"role": "user", "content": [{"type": "text", "text": ins}]}
-    ]
+    num_batches = math.ceil(len(image_files) / batch_size)
 
-    for i in range(len(images)): 
-        image_path = f"image{i}.png"  
-        base64_image = encode_image(image_path)
-        messages[1]["content"].append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{base64_image}", "detail": "low"},
-        })
+    for batch_idx in range(num_batches):
+        batch_images = image_files[batch_idx * batch_size : (batch_idx + 1) * batch_size]
+        
+        messages = [
+            {"role": "system", "content": "Only respond with a single integer, no text."},
+            {"role": "user", "content": [{"type": "text", "text": ins}]}
+        ]
+        
+        for image_path in batch_images:
+            base64_image = encode_image(image_path)
+            messages[1]["content"].append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{base64_image}", "detail": "low"},
+            })
 
-    completion = client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        temperature=0,
-        top_p=0,
-    )
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            temperature=0,
+            top_p=0,
+        )
 
-    return int(completion.choices[0].message.content.strip())  
+        batch_count = int(completion.choices[0].message.content.strip())
+        total_count += batch_count  # Cộng dồn kết quả từng batch
+
+    return total_count/len(image_files)
 
 def generate_sentences(object_1,object_2,gemini_key) : 
     client_gemini = genai.Client(api_key=gemini_key)
