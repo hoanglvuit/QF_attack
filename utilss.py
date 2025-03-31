@@ -348,24 +348,33 @@ def generate_images(prompts,pipe,generator,num_image = 10) :
             image = pipe([prompt],generator = generator,num_inference_steps=50,num_images_per_prompt = num_image).images
             images.append(image)
     return images
-def CLIP_score(folder,prompt,model,preprocess,tokenizer) : 
+def CLIP_score(folder, prompt, model, preprocess, tokenizer):
     image_folder = folder
     image_files = [f for f in os.listdir(image_folder) if f.endswith(".png")]
-    images = torch.stack([preprocess(Image.open(os.path.join(image_folder, img))) for img in image_files])
-    #images = images.to('cuda').to(dtype=torch.float16)
-    # Tokenize a single prompt
-    text = tokenizer([prompt])  # Single prompt for all images
     
-    # Encode images and text
-    with torch.no_grad(), torch.autocast("cuda"):
+    # Di chuyển mọi xử lý lên GPU
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device)
+    
+    # Xử lý hình ảnh và đưa lên GPU ngay lập tức
+    images = torch.stack([preprocess(Image.open(os.path.join(image_folder, img))) for img in image_files])
+    images = images.to(device)
+    
+    # Tokenize prompt và đưa lên GPU
+    text = tokenizer([prompt]).to(device) 
+    
+    # Encode images và text
+    with torch.no_grad(), torch.autocast(device):
         image_features = model.encode_image(images)
         text_features = model.encode_text(text)
+        
+        # Chuẩn hóa các đặc trưng trên GPU
         image_features /= image_features.norm(dim=-1, keepdim=True)
         text_features /= text_features.norm(dim=-1, keepdim=True)
+        
+        # Tính toán điểm tương đồng trên GPU rồi mới chuyển về CPU
+        similarity = (text_features @ image_features.T).cpu().numpy()
     
-        # Compute similarity scores
-        similarity = text_features.cpu().numpy() @ image_features.cpu().numpy().T
-
     print(similarity)
     return np.mean(similarity)
 
