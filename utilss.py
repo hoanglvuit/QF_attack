@@ -447,6 +447,49 @@ def SR_evaluation(obj_1, obj_2, folder, client, batch_size=30):
 
     return total_count/len(image_files)
 
+def SRob2_evaluation(obj_1, obj_2, folder, client, batch_size=30):
+    """
+    obj_1, obj_2 : string 
+    folder: chứa ảnh .png
+    client: OpenAI API client
+    batch_size: số lượng ảnh gửi mỗi lần để tránh vượt giới hạn
+    """
+    image_files = [f for f in os.listdir(folder) if f.endswith(".png")]
+    image_files = [os.path.join(folder, img) for img in image_files]
+    
+    total_count = 0  # Biến để cộng dồn kết quả
+
+    ins = f"How many images contain {obj_2}? Respond with only a number."
+    print(ins)
+    num_batches = math.ceil(len(image_files) / batch_size)
+
+    for batch_idx in range(num_batches):
+        batch_images = image_files[batch_idx * batch_size : (batch_idx + 1) * batch_size]
+        
+        messages = [
+            {"role": "system", "content": "Only respond with a single integer, no text."},
+            {"role": "user", "content": [{"type": "text", "text": ins}]}
+        ]
+        
+        for image_path in batch_images:
+            base64_image = encode_image(image_path)
+            messages[1]["content"].append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{base64_image}", "detail": "low"},
+            })
+
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            temperature=0,
+            top_p=0,
+        )
+
+        batch_count = int(completion.choices[0].message.content.strip())
+        total_count += batch_count  # Cộng dồn kết quả từng batch
+
+    return total_count/len(image_files)
+
 def generate_sentences(object_1,object_2,gemini_key) : 
     client_gemini = genai.Client(api_key=gemini_key)
     prompt = f"Generate 50 sentences for text-to-image that have an simple object (only 1 word such as '{object_1}') and  'and {object_2}' at the end"
